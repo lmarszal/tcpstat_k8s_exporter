@@ -1,0 +1,69 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: tcpstat-k8s-exporter
+  namespace: monitoring
+  labels:
+    app: tcpstat-k8s-exporter
+spec:
+  selector:
+    matchLabels:
+      app: tcpstat-k8s-exporter
+  template:
+    metadata:
+      labels:
+        app: tcpstat-k8s-exporter
+    spec:
+      hostPID: true
+      containers:
+        - name: tcpstat-k8s-exporter
+          image: lmarszal/tcpstat-k8s-exporter:0.0.1-alpha.5
+          env:
+            - name: NAMESPACE
+              value: -- ADD YOUR NAMESPACE NAME HERE --
+          ports:
+            - containerPort: 8080
+          volumeMounts:
+            - mountPath: /var/run/docker.sock
+              name: docker-sock
+      volumes:
+        - name: docker-sock
+          hostPath:
+            path: /var/run/docker.sock
+            type: Socket
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: tcpstat-k8s-exporter
+  name: tcpstat-k8s-exporter
+  namespace: monitoring
+spec:
+  type: ClusterIP
+  selector:
+    app: tcpstat-k8s-exporter
+  ports:
+    - name: http-metrics
+      port: 8080
+      protocol: TCP
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  labels:
+    app: tcpstat-k8s-exporter
+  name: tcpstat-k8s-exporter
+  namespace: kube-system
+spec:
+  endpoints:
+    - interval: 15s
+      port: http-metrics
+      scheme: http
+  jobLabel: tcpstat-k8s-exporter
+  namespaceSelector:
+    matchNames:
+      - monitoring
+  selector:
+    matchLabels:
+      app: tcpstat-k8s-exporter
